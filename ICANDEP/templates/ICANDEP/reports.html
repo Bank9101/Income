@@ -1,0 +1,237 @@
+{% extends 'ICANDEP/base.html' %}
+
+{% block title %}รายงาน - ระบบจัดการรายรับรายจ่าย{% endblock %}
+{% block page_title %}รายงาน{% endblock %}
+
+{% block content %}
+<!-- Monthly Chart -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold" style="color: var(--text-primary);">
+                    <i class="bi bi-graph-up me-2"></i>กราฟรายรับรายจ่ายรายเดือน
+                </h6>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlyChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Chart -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold" style="color: var(--text-primary);">
+                    <i class="bi bi-pie-chart me-2"></i>รายจ่ายตามหมวดหมู่
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if category_expenses %}
+                    <canvas id="categoryChart" width="400" height="300"></canvas>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-pie-chart fs-1" style="color: var(--text-muted);"></i>
+                        <p style="color: var(--text-muted);" class="mt-2">ยังไม่มีข้อมูลรายจ่าย</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold" style="color: var(--text-primary);">
+                    <i class="bi bi-list-ul me-2"></i>สรุปหมวดหมู่
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if category_expenses %}
+                    {% for expense in category_expenses %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <strong style="color: var(--text-primary);">{{ expense.get_category_display }}</strong>
+                            <br>
+                            <small style="color: var(--text-muted);">{{ expense.count }} รายการ</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold" style="color: var(--danger-color);">฿{{ expense.total|floatformat:2 }}</div>
+                            <small style="color: var(--text-muted);">
+                                {% widthratio expense.total category_expenses.0.total 100 %}%
+                            </small>
+                        </div>
+                    </div>
+                    <div class="progress mb-3" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {% widthratio expense.total category_expenses.0.total 100 %}%; background: var(--danger-color);">
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox fs-1" style="color: var(--text-muted);"></i>
+                        <p style="color: var(--text-muted);" class="mt-2">ยังไม่มีข้อมูล</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row">
+    <div class="col-md-3 mb-4">
+        <div class="card stat-card income h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-up-circle fs-1 mb-3" style="color: var(--text-primary);"></i>
+                <h4 style="color: var(--text-primary);" class="mb-1">รายรับรวม</h4>
+                <h2 style="color: var(--text-primary);" class="mb-0">฿{{ total_income|default:0|floatformat:2 }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card stat-card expense h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-arrow-down-circle fs-1 mb-3" style="color: var(--text-primary);"></i>
+                <h4 style="color: var(--text-primary);" class="mb-1">รายจ่ายรวม</h4>
+                <h2 style="color: var(--text-primary);" class="mb-0">฿{{ total_expense|default:0|floatformat:2 }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card stat-card balance h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-wallet2 fs-1 mb-3" style="color: var(--text-primary);"></i>
+                <h4 style="color: var(--text-primary);" class="mb-1">ยอดคงเหลือ</h4>
+                <h2 style="color: var(--text-primary);" class="mb-0">฿{{ balance|default:0|floatformat:2 }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card stat-card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-graph-up fs-1 mb-3" style="color: var(--text-primary);"></i>
+                <h4 style="color: var(--text-primary);" class="mb-1">อัตราส่วน</h4>
+                <h2 style="color: var(--text-primary);" class="mb-0">{{ ratio|default:0|floatformat:1 }}%</h2>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Monthly Chart
+    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    const monthlyChart = new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: {{ months|safe }},
+            datasets: [{
+                label: 'รายรับ',
+                data: {{ income_data|safe }},
+                borderColor: '#00D4AA',
+                backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                tension: 0.4,
+                fill: true
+            }, {
+                label: 'รายจ่าย',
+                data: {{ expense_data|safe }},
+                borderColor: '#FF6B6B',
+                backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        color: '#FFFFFF'
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'รายรับรายจ่ายรายเดือน',
+                    color: '#FFFFFF'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#FFFFFF',
+                        callback: function(value) {
+                            return '฿' + value.toLocaleString();
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#FFFFFF'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+
+    {% if category_expenses %}
+    // Category Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    const categoryChart = new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for expense in category_expenses %}
+                    '{{ expense.get_category_display }}',
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for expense in category_expenses %}
+                        {{ expense.total }},
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    '#00D4AA', '#FF6B6B', '#FFB800', '#858796', '#2C2C2C',
+                    '#333333', '#404040', '#00B894', '#FF5252', '#FF3838'
+                ],
+                borderWidth: 2,
+                borderColor: '#333333'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#FFFFFF'
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'สัดส่วนรายจ่ายตามหมวดหมู่',
+                    color: '#FFFFFF'
+                }
+            }
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}
